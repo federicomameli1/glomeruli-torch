@@ -6,3 +6,4 @@ weights/
 data/
 .venv/
 *.egg-info/
+*.bundle
