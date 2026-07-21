@@ -48,7 +48,7 @@ fi
 # --- 2. torch env (create once; idempotent) ----------------------------------
 if ! conda env list | grep -q "glomeruli-torch"; then
     echo "===== creating conda env glomeruli-torch (first run only) ====="
-    conda create -n glomeruli-torch python=3.11 -y
+    conda create -n glomeruli-torch -c conda-forge --override-channels python=3.11 -y
     conda activate glomeruli-torch
     pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121
     pip install --quiet -r requirements.txt
