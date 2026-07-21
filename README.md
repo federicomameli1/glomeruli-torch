@@ -33,6 +33,26 @@ bash run_experiments.sh                              # baseline vs Lunit, matche
 - Lunit weights in `weights/` (ResNet50 Barlow Twins for segmentation; DINO ViT for the
   clustering stage) from `lunit-io/benchmark-ssl-pathology`.
 
+## External data — HuBMAP "Hacking the Kidney" (cross-domain test)
+Human PAS kidney WSIs from a different source. Only the ~8 train WSIs have public
+glomerulus masks (RLE in `train.csv`), so this is a **generalisation test**, not "more data".
+
+```bash
+# 1. download (needs a Kaggle account + accepted competition rules + ~/.kaggle/kaggle.json)
+kaggle competitions download -c hubmap-kidney-segmentation -p hubmap && unzip -q hubmap/*.zip -d hubmap
+# 2. self-check the RLE decoder
+python prep_hubmap.py --selfcheck
+# 3. convert -> our layout (split by WSI id to avoid leakage; ids are the .tiff filenames)
+python prep_hubmap.py --hubmap-dir hubmap --out data/hubmap \
+    --val-ids <one-wsi-id> --test-ids <another-wsi-id>
+# 4. LOOK at data/hubmap/_sanity/*.png — the red mask must sit on the glomeruli.
+#    If it's transposed/scrambled, rerun step 3 with --rle-order C.
+# 5. train on it, same pipeline:
+python train.py --data-dir data/hubmap --encoder-weights imagenet --out out/hubmap --tta
+```
+`prep_hubmap.py` decodes each WSI's RLE, tiles it, keeps glomerulus tiles (+ some tissue
+negatives), resizes, and writes PNG img/mask pairs — exactly what `GlomDataset` reads.
+
 ## Honest prior
 FP03's TF runs showed pathology encoders did **not** beat ImageNet *for segmentation* —
 this repo re-tests that cleanly (matched setup) and, more promisingly, applies Lunit

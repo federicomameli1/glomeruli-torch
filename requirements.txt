@@ -9,3 +9,6 @@ scikit-learn
 hdbscan
 umap-learn
 tqdm
+pandas
+tifffile
+zarr
