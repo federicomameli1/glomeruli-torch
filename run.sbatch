@@ -73,7 +73,31 @@ python train.py $COMMON --encoder resnet50 --encoder-weights none \
     --lunit-weights weights/bt_rn50.torch \
     --out "$RESULTS/lunit_bt" 2>&1 | tee "$RESULTS/lunit_bt.log" || echo "lunit FAILED"
 
-# --- 5. summary ---------------------------------------------------------------
+# --- 5. glomerulus crops (reuse TF env; only if missing) ----------------------
+CROPS=$MAIN_REPO/data/glomeruli/crops
+if [ ! -d "$CROPS" ] || [ -z "$(ls -A "$CROPS" 2>/dev/null)" ]; then
+    echo "===== extracting glomerulus crops (env: glomeruli) ====="
+    conda activate glomeruli
+    ( cd "$MAIN_REPO" && python scripts/extract_glomeruli_from_annotations.py "$SLIDES_DIR" )
+    conda activate glomeruli-torch
+fi
+
+# --- 6. clustering: Lunit DINO vs ImageNet, matched ---------------------------
+if [ -f weights/dino_vits16.torch ]; then
+    echo "===== clustering: Lunit DINO ViT ====="
+    python embed_and_cluster.py --backbone lunit_dino --lunit-weights weights/dino_vits16.torch \
+        --crops-dir "$CROPS" --out "$RESULTS/clust_dino" 2>&1 | tee "$RESULTS/clust_dino.log" || echo "dino cluster FAILED"
+    echo "===== clustering: ImageNet ResNet50 ====="
+    python embed_and_cluster.py --backbone imagenet_r50 \
+        --crops-dir "$CROPS" --out "$RESULTS/clust_imagenet" 2>&1 | tee "$RESULTS/clust_imagenet.log" || echo "imagenet cluster FAILED"
+else
+    echo "weights/dino_vits16.torch absent — skipping clustering stage"
+fi
+
+# --- 7. summary ---------------------------------------------------------------
 echo ""; echo "===== SUMMARY (glomeruli-torch job $SLURM_JOB_ID) ====="
-grep -h "^TEST" "$RESULTS"/*.log 2>/dev/null | sed 's/^/  /' || echo "  (no TEST lines — both runs failed?)"
+echo "-- segmentation (glomerulus IoU/Dice) --"
+grep -h "^TEST" "$RESULTS"/*.log 2>/dev/null | sed 's/^/  /' || echo "  (none)"
+echo "-- clustering (internal validity) --"
+grep -h "^CLUSTER" "$RESULTS"/*.log 2>/dev/null | sed 's/^/  /' || echo "  (none)"
 echo "results in $RESULTS"
