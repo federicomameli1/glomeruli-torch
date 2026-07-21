@@ -1,0 +1,8 @@
+__pycache__/
+*.pt
+*.torch
+out/
+weights/
+data/
+.venv/
+*.egg-info/

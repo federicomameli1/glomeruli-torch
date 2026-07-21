@@ -1,0 +1,11 @@
+torch
+torchvision
+segmentation-models-pytorch
+timm
+albumentations
+opencv-python-headless
+numpy
+scikit-learn
+hdbscan
+umap-learn
+tqdm
