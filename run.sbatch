@@ -45,13 +45,23 @@ else
     echo "patches already present at $DATA — skipping preprocessing"
 fi
 
-# --- 2. torch env (create once; idempotent) ----------------------------------
-if ! conda env list | grep -q "glomeruli-torch"; then
-    echo "===== creating conda env glomeruli-torch (first run only) ====="
-    conda create -n glomeruli-torch -c conda-forge --override-channels python=3.11 -y
+# --- 2. torch env (create-or-repair; verified by a real import) ---------------
+# NB: check the env actually WORKS, not just that the name exists — a half-built
+# env (e.g. left behind by an earlier failed create) must be rebuilt, not reused.
+need_setup=0
+if ! conda env list | awk '{print $1}' | grep -qx glomeruli-torch; then
+    need_setup=1
+elif ! conda run -n glomeruli-torch python -c "import torch, cv2, segmentation_models_pytorch, hdbscan, umap" 2>/dev/null; then
+    echo "existing glomeruli-torch env is broken/incomplete -> recreating"
+    conda env remove -n glomeruli-torch -y
+    need_setup=1
+fi
+if [ "$need_setup" = "1" ]; then
+    echo "===== building conda env glomeruli-torch ====="
+    conda create -n glomeruli-torch -c conda-forge --override-channels python=3.11 pip -y
     conda activate glomeruli-torch
-    pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121
-    pip install --quiet -r requirements.txt
+    python -m pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    python -m pip install --quiet -r requirements.txt
 else
     conda activate glomeruli-torch
 fi
