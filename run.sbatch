@@ -34,6 +34,9 @@ RESULTS=$REPO/results-$SLURM_JOB_ID
 cd "$REPO"
 nvidia-smi || true
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
+# accept Anaconda default-channel ToS (idempotent) — else conda create aborts non-interactively
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r 2>/dev/null || true
 
 # --- 1. preprocessing (reuse the TF env; only if the patches are missing) -----
 if [ ! -d "$DATA/train/img" ] || [ -z "$(ls -A "$DATA/train/img" 2>/dev/null)" ]; then
