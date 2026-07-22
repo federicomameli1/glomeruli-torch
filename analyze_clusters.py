@@ -29,9 +29,14 @@ import pandas as pd
 from sklearn.preprocessing import normalize
 from sklearn.decomposition import PCA
 from sklearn.metrics import (silhouette_score, davies_bouldin_score,
-                             calinski_harabasz_score)
+                             calinski_harabasz_score, normalized_mutual_info_score)
 import umap
 import hdbscan
+
+
+def slide_of(path):
+    # crop names look like RECHERCHE-003_0000.png -> slide id is everything before the last _
+    return os.path.basename(path).rsplit("_", 1)[0]
 
 
 def cluster(emb):
@@ -89,12 +94,19 @@ def main():
     if not crops:
         raise FileNotFoundError(f"no crops in {args.crops_dir}")
 
+    slides = np.array([slide_of(p) for p in crops])
     rows, cache = [], {}
     for npy in sorted(glob.glob(os.path.join(args.embeddings_dir, "*.npy"))):
         name = os.path.basename(npy).replace("_crops_embeddings.npy", "").replace("_embeddings.npy", "").replace(".npy", "")
         emb = np.load(npy)
         z, labels = cluster(emb)
         s = score(z, labels)
+        # slide_nmi: how much cluster membership is explained by the slide of origin.
+        # ~1 = clusters ARE the slides (stain/batch confound); ~0 = independent (morphology).
+        if len(emb) == len(crops):
+            m = labels != -1
+            if m.sum() > 1 and len(set(labels[m])) > 1:
+                s["slide_nmi"] = round(float(normalized_mutual_info_score(labels[m], slides[m])), 4)
         rows.append({"backbone": name, "n_samples": len(emb), **s})
         cache[name] = (labels, len(emb))
         print(f"{name}: {json.dumps(s)}")
@@ -114,6 +126,11 @@ def main():
             else:
                 montage(crops, labels, os.path.join(args.out, "montage_" + name), name)
                 print(f"\nmontages -> {args.out}/montage_{name}/  (scp these and open them)")
+                ct = pd.crosstab(labels, slides)
+                print(f"\n=== cluster x slide of origin ({name}) ===")
+                print(ct.to_string())
+                print("(if each cluster is dominated by a few slides -> stain/batch "
+                      "confound, not morphology)")
             break
 
 
