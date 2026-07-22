@@ -32,10 +32,12 @@ def load_lunit_weights(model, ckpt_path):
             if k.startswith(p):
                 k = k[len(p):]
         clean[k] = v
-    missing, unexpected = model.encoder.load_state_dict(clean, strict=False)
-    loaded = len(clean) - len(unexpected)
-    print(f"Lunit weights: ~{loaded} tensors loaded | {len(missing)} missing | "
-          f"{len(unexpected)} unexpected")
-    # money check: if key names didn't line up, almost nothing loads — fail loud.
-    assert loaded > 50, "almost nothing loaded — encoder/checkpoint key mismatch; inspect it"
+    enc_keys = set(model.encoder.state_dict().keys())
+    matched = sum(1 for k in clean if k in enc_keys)
+    # NB: smp encoders override load_state_dict and may return None -> don't unpack it.
+    model.encoder.load_state_dict(clean, strict=False)
+    print(f"Lunit weights: {matched}/{len(clean)} tensors matched the encoder "
+          f"(encoder has {len(enc_keys)})")
+    # money check: if key names didn't line up, almost nothing matches — fail loud.
+    assert matched > 50, "almost nothing matched — encoder/checkpoint key mismatch; inspect it"
     return model

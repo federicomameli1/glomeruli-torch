@@ -117,7 +117,8 @@ def main():
     loss_fn = make_loss(args.loss)
     ld = lambda split, tr: DataLoader(
         GlomDataset(os.path.join(args.data_dir, split), args.img_size, train=tr),
-        batch_size=args.batch_size, shuffle=tr, num_workers=4, pin_memory=True)
+        batch_size=args.batch_size, shuffle=tr, num_workers=4, pin_memory=True,
+        drop_last=tr)   # drop size-1 last train batch (breaks ASPP BatchNorm); keep all eval samples
     tr, va, te = ld("train", True), ld("validation", False), ld("test", False)
 
     best = {"iou": -1.0}

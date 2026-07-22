@@ -91,7 +91,8 @@ def main():
         print(f"\n===== fold {i}/{len(slides)} — hold out {held} "
               f"(train {len(train_paths)} / test {len(test_paths)}) =====")
         tr = DataLoader(GlomDataset(image_paths=train_paths, size=args.img_size, train=True),
-                        batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
+                        batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True,
+                        drop_last=True)   # avoid a size-1 last batch breaking ASPP BatchNorm
         te = DataLoader(GlomDataset(image_paths=test_paths, size=args.img_size, train=False),
                         batch_size=args.batch_size, num_workers=4, pin_memory=True)
 
