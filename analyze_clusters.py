@@ -39,14 +39,20 @@ def slide_of(path):
     return os.path.basename(path).rsplit("_", 1)[0]
 
 
-def cluster(emb):
+def cluster(emb, min_cluster_size=0, method="eom", kmeans_k=0, n_neighbors=0):
     n = len(emb)
     x = normalize(emb)
     x = PCA(n_components=0.9).fit_transform(x)     # same preprocess as cluster_hdbscan
     x = normalize(x)
-    z = umap.UMAP(n_neighbors=max(5, int(0.05 * n)), min_dist=0.0,
-                  random_state=42).fit_transform(x)
-    labels = hdbscan.HDBSCAN(min_cluster_size=max(5, int(0.03 * n))).fit_predict(z)
+    nn = n_neighbors or max(5, int(0.05 * n))      # lower -> more local -> more clusters
+    z = umap.UMAP(n_neighbors=nn, min_dist=0.0, random_state=42).fit_transform(x)
+    if kmeans_k > 0:                               # force exactly K clusters (e.g. 6 for A-F)
+        from sklearn.cluster import KMeans
+        labels = KMeans(n_clusters=kmeans_k, n_init=10, random_state=42).fit_predict(z)
+    else:
+        mcs = min_cluster_size or max(5, int(0.03 * n))
+        labels = hdbscan.HDBSCAN(min_cluster_size=mcs,
+                                 cluster_selection_method=method).fit_predict(z)  # 'leaf' = more, finer
     return z, labels
 
 
@@ -107,6 +113,14 @@ def main():
                     help="substring to pick which backbone to montage; default = best silhouette")
     ap.add_argument("--describe", action="store_true",
                     help="print per-cluster morphological descriptors (colour vs structure)")
+    ap.add_argument("--min-cluster-size", type=int, default=0,
+                    help="HDBSCAN min_cluster_size (0=auto 3%%); lower -> more clusters")
+    ap.add_argument("--cluster-method", default="eom", choices=["eom", "leaf"],
+                    help="HDBSCAN selection; 'leaf' gives more, finer clusters")
+    ap.add_argument("--umap-neighbors", type=int, default=0,
+                    help="UMAP n_neighbors (0=auto 5%%); lower -> more local -> more clusters")
+    ap.add_argument("--kmeans", type=int, default=0,
+                    help="force exactly K clusters with KMeans instead of HDBSCAN (e.g. 6 for A-F)")
     args = ap.parse_args()
 
     crops = sorted(glob.glob(os.path.join(args.crops_dir, "*.png")))
@@ -118,7 +132,8 @@ def main():
     for npy in sorted(glob.glob(os.path.join(args.embeddings_dir, "*.npy"))):
         name = os.path.basename(npy).replace("_crops_embeddings.npy", "").replace("_embeddings.npy", "").replace(".npy", "")
         emb = np.load(npy)
-        z, labels = cluster(emb)
+        z, labels = cluster(emb, args.min_cluster_size, args.cluster_method,
+                            args.kmeans, args.umap_neighbors)
         s = score(z, labels)
         # slide_nmi: how much cluster membership is explained by the slide of origin.
         # ~1 = clusters ARE the slides (stain/batch confound); ~0 = independent (morphology).
