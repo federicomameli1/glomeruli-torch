@@ -65,6 +65,23 @@ def score(z, labels):
     return out
 
 
+def describe_crop(path):
+    """Cheap descriptors that separate 'colour differs' from 'structure differs'."""
+    bgr = cv2.imread(path)
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB).astype(np.float32)   # L 0-255, a/b centred 128
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0)
+    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1)
+    return {
+        # colour / stain
+        "L": lab[..., 0].mean(), "a": lab[..., 1].mean(), "b": lab[..., 2].mean(),
+        # structure / morphology
+        "contrast": float(gray.std()),
+        "edge": float(np.sqrt(gx ** 2 + gy ** 2).mean()),
+        "dark_frac": float((gray < 100).mean()),   # PAS-dense / matrix-rich pixels
+    }
+
+
 def montage(crop_paths, labels, out_dir, tag, per=25, thumb=128, cols=5):
     os.makedirs(out_dir, exist_ok=True)
     for c in sorted(set(labels)):
@@ -88,6 +105,8 @@ def main():
     ap.add_argument("--out", default="cluster_analysis")
     ap.add_argument("--montage-backbone", default=None,
                     help="substring to pick which backbone to montage; default = best silhouette")
+    ap.add_argument("--describe", action="store_true",
+                    help="print per-cluster morphological descriptors (colour vs structure)")
     args = ap.parse_args()
 
     crops = sorted(glob.glob(os.path.join(args.crops_dir, "*.png")))
@@ -131,6 +150,13 @@ def main():
                 print(ct.to_string())
                 print("(if each cluster is dominated by a few slides -> stain/batch "
                       "confound, not morphology)")
+                if args.describe:
+                    desc = pd.DataFrame([describe_crop(p) for p in crops])
+                    desc["cluster"] = labels
+                    print(f"\n=== per-cluster descriptors ({name}) ===")
+                    print(desc.groupby("cluster").mean().round(2).to_string())
+                    print("(clusters differing mainly in a/b/L -> colour axis; "
+                          "differing in contrast/edge/dark_frac -> structure/morphology)")
             break
 
 
